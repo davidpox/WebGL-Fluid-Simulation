@@ -1,5 +1,7 @@
 'use strict';
 
+import TWEEN from '@tweenjs/tween.js';
+
 const canvas = document.getElementsByTagName('canvas')[0];
 canvas.width = canvas.clientWidth;
 canvas.height = canvas.clientHeight;
@@ -8,11 +10,11 @@ let config = {
     SIM_RESOLUTION: 128,
     DYE_RESOLUTION: 512,
     DENSITY_DISSIPATION: 0.97,
-    VELOCITY_DISSIPATION: 0.98,
-    PRESSURE_DISSIPATION: 0.8,
+    VELOCITY_DISSIPATION: 0.99,
+    PRESSURE_DISSIPATION: 0.54,
     PRESSURE_ITERATIONS: 20,
-    CURL: 30,
-    SPLAT_RADIUS: 0.5,
+    CURL: 15,
+    SPLAT_RADIUS: 0.76,
     SHADING: true,
     COLORFUL: true,
     PAUSED: false,
@@ -21,10 +23,43 @@ let config = {
     BLOOM: true,
     BLOOM_ITERATIONS: 8,
     BLOOM_RESOLUTION: 256,
-    BLOOM_INTENSITY: 0.8,
-    BLOOM_THRESHOLD: 0.6,
+    BLOOM_INTENSITY: 1.24,
+    BLOOM_THRESHOLD: 1.0,
     BLOOM_SOFT_KNEE: 0.7
 }
+
+const easingFunctions = [
+	TWEEN.Easing.Linear.None,
+	TWEEN.Easing.Quadratic.InOut,
+	TWEEN.Easing.Quadratic.In,
+	TWEEN.Easing.Quadratic.Out,
+	TWEEN.Easing.Quartic.InOut,
+	TWEEN.Easing.Quartic.In,
+	TWEEN.Easing.Quartic.Out,
+	TWEEN.Easing.Sinusoidal.InOut,
+	TWEEN.Easing.Sinusoidal.In,
+	TWEEN.Easing.Sinusoidal.Out,
+	TWEEN.Easing.Circular.InOut,
+	TWEEN.Easing.Circular.In,
+	TWEEN.Easing.Circular.Out,
+	TWEEN.Easing.Back.InOut,
+	TWEEN.Easing.Back.In,
+	TWEEN.Easing.Back.Out,
+	TWEEN.Easing.Cubic.InOut,
+	TWEEN.Easing.Cubic.In,
+	TWEEN.Easing.Cubic.Out,
+	TWEEN.Easing.Quintic.InOut,
+	TWEEN.Easing.Quintic.In,
+	TWEEN.Easing.Quintic.Out,
+	TWEEN.Easing.Exponential.InOut,
+	TWEEN.Easing.Exponential.In,
+	TWEEN.Easing.Exponential.Out
+];
+
+const interpolationFunctions = [
+	TWEEN.Interpolation.Bezier,
+	TWEEN.Interpolation.CatmullRom
+]
 
 function pointerPrototype () {
     this.id = -1;
@@ -52,7 +87,6 @@ if (!ext.supportLinearFiltering)
     config.BLOOM = false;
 }
 
-startGUI();
 
 function getWebGLContext (canvas) {
     const params = { alpha: true, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false };
@@ -91,11 +125,6 @@ function getWebGLContext (canvas) {
         formatRG = getSupportedFormat(gl, gl.RGBA, gl.RGBA, halfFloatTexType);
         formatR = getSupportedFormat(gl, gl.RGBA, gl.RGBA, halfFloatTexType);
     }
-
-    if (formatRGBA == null)
-        ga('send', 'event', isWebGL2 ? 'webgl2' : 'webgl', 'not supported');
-    else
-        ga('send', 'event', isWebGL2 ? 'webgl2' : 'webgl', 'supported');
 
     return {
         gl,
@@ -149,133 +178,12 @@ function supportRenderTextureFormat (gl, internalFormat, format, type) {
     return true;
 }
 
-function startGUI () {
-    var gui = new dat.GUI({ width: 300 });
-    gui.add(config, 'SIM_RESOLUTION', { '32': 32, '64': 64, '128': 128, '256': 256 }).name('sim resolution').onFinishChange(initFramebuffers);
-    gui.add(config, 'DYE_RESOLUTION', { '128': 128, '256': 256, '512': 512, '1024': 1024 }).name('dye resolution').onFinishChange(initFramebuffers);
-    gui.add(config, 'DENSITY_DISSIPATION', 0.9, 1.0).name('density diffusion');
-    gui.add(config, 'VELOCITY_DISSIPATION', 0.9, 1.0).name('velocity diffusion');
-    gui.add(config, 'PRESSURE_DISSIPATION', 0.0, 1.0).name('pressure diffusion');
-    gui.add(config, 'CURL', 0, 50).name('vorticity').step(1);
-    gui.add(config, 'SPLAT_RADIUS', 0.01, 1.0).name('splat radius');
-    gui.add(config, 'SHADING').name('shading');
-    gui.add(config, 'COLORFUL').name('colorful');
-    gui.add(config, 'PAUSED').name('paused').listen();
-
-    gui.add({ fun: () => {
-        splatStack.push(parseInt(Math.random() * 20) + 5);
-    } }, 'fun').name('Random splats');
-
-    let bloomFolder = gui.addFolder('Bloom');
-    bloomFolder.add(config, 'BLOOM').name('enabled');
-    bloomFolder.add(config, 'BLOOM_INTENSITY', 0.1, 2.0).name('intensity');
-    bloomFolder.add(config, 'BLOOM_THRESHOLD', 0.0, 1.0).name('threshold');
-
-    let captureFolder = gui.addFolder('Capture');
-    captureFolder.addColor(config, 'BACK_COLOR').name('background color');
-    captureFolder.add(config, 'TRANSPARENT').name('transparent');
-    captureFolder.add({ fun: captureScreenshot }, 'fun').name('take screenshot');
-
-    let github = gui.add({ fun : () => {
-        window.open('https://github.com/PavelDoGreat/WebGL-Fluid-Simulation');
-        ga('send', 'event', 'link button', 'github');
-    } }, 'fun').name('Github');
-    github.__li.className = 'cr function bigFont';
-    github.__li.style.borderLeft = '3px solid #8C8C8C';
-    let githubIcon = document.createElement('span');
-    github.domElement.parentElement.appendChild(githubIcon);
-    githubIcon.className = 'icon github';
-
-    let twitter = gui.add({ fun : () => {
-        ga('send', 'event', 'link button', 'twitter');
-        window.open('https://twitter.com/PavelDoGreat');
-    } }, 'fun').name('Twitter');
-    twitter.__li.className = 'cr function bigFont';
-    twitter.__li.style.borderLeft = '3px solid #8C8C8C';
-    let twitterIcon = document.createElement('span');
-    twitter.domElement.parentElement.appendChild(twitterIcon);
-    twitterIcon.className = 'icon twitter';
-
-    let discord = gui.add({ fun : () => {
-        ga('send', 'event', 'link button', 'discord');
-        window.open('https://discordapp.com/invite/CeqZDDE');
-    } }, 'fun').name('Discord');
-    discord.__li.className = 'cr function bigFont';
-    discord.__li.style.borderLeft = '3px solid #8C8C8C';
-    let discordIcon = document.createElement('span');
-    discord.domElement.parentElement.appendChild(discordIcon);
-    discordIcon.className = 'icon discord';
-
-    let app = gui.add({ fun : () => {
-        ga('send', 'event', 'link button', 'app');
-        window.open('http://onelink.to/5b58bn');
-    } }, 'fun').name('Check out new improved version');
-    app.__li.className = 'cr function appBigFont';
-    app.__li.style.borderLeft = '3px solid #00FF7F';
-    let appIcon = document.createElement('span');
-    app.domElement.parentElement.appendChild(appIcon);
-    appIcon.className = 'icon app';
-
-    if (isMobile())
-        gui.close();
-}
-
-function captureScreenshot () {
-    colorProgram.bind();
-    gl.uniform4f(colorProgram.uniforms.color, 0, 0, 0, 1);
-    blit(density.write.fbo);
-
-    render(density.write.fbo);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, density.write.fbo);
-
-    let length = dyeWidth * dyeHeight * 4;
-    let pixels = new Float32Array(length);
-    gl.readPixels(0, 0, dyeWidth, dyeHeight, gl.RGBA, gl.FLOAT, pixels);
-
-    let newPixels = new Uint8Array(length);
-
-    let id = 0;
-    for (let i = dyeHeight - 1; i >= 0; i--) {
-        for (let j = 0; j < dyeWidth; j++) {
-            let nid = i * dyeWidth * 4 + j * 4;
-            newPixels[nid + 0] = clamp01(pixels[id + 0]) * 255;
-            newPixels[nid + 1] = clamp01(pixels[id + 1]) * 255;
-            newPixels[nid + 2] = clamp01(pixels[id + 2]) * 255;
-            newPixels[nid + 3] = clamp01(pixels[id + 3]) * 255;
-            id += 4;
-        }
-    }
-
-    let captureCanvas = document.createElement('canvas');
-    let ctx = captureCanvas.getContext('2d');
-    captureCanvas.width = dyeWidth;
-    captureCanvas.height = dyeHeight;
-
-    let imageData = ctx.createImageData(dyeWidth, dyeHeight);
-    imageData.data.set(newPixels);
-    ctx.putImageData(imageData, 0, 0);
-    let datauri = captureCanvas.toDataURL();
-
-    downloadURI("fluid.png", datauri);
-
-    URL.revokeObjectURL(datauri);
+function isMobile () {
+    return /Mobi|Android/i.test(navigator.userAgent);
 }
 
 function clamp01 (input) {
     return Math.min(Math.max(input, 0), 1);
-}
-
-function downloadURI (filename, uri) {
-    let link = document.createElement("a");
-    link.download = filename;
-    link.href = uri;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-function isMobile () {
-    return /Mobi|Android/i.test(navigator.userAgent);
 }
 
 class GLProgram {
@@ -786,7 +694,7 @@ let curl;
 let pressure;
 let bloom;
 
-let ditheringTexture = createTextureAsync('LDR_RGB1_0.png');
+let ditheringTexture = createTextureAsync('./assets/images/LDR_RGB1_0.png');
 
 const clearProgram               = new GLProgram(baseVertexShader, clearShader);
 const colorProgram               = new GLProgram(baseVertexShader, colorShader);
@@ -970,7 +878,8 @@ update();
 
 function update () {
     resizeCanvas();
-    input();
+	input();
+	TWEEN.update();
     if (!config.PAUSED)
         step(0.016);
     render(null);
@@ -1224,22 +1133,13 @@ canvas.addEventListener('mousemove', e => {
     pointers[0].y = e.offsetY;
 });
 
-canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    const touches = e.targetTouches;
-    for (let i = 0; i < touches.length; i++) {
-        let pointer = pointers[i];
-        pointer.moved = pointer.down;
-        pointer.dx = (touches[i].pageX - pointer.x) * 8.0;
-        pointer.dy = (touches[i].pageY - pointer.y) * 8.0;
-        pointer.x = touches[i].pageX;
-        pointer.y = touches[i].pageY;
-    }
-}, false);
-
 canvas.addEventListener('mousedown', () => {
     pointers[0].down = true;
     pointers[0].color = generateColor();
+});
+
+window.addEventListener('mouseup', () => {
+    pointers[0].down = false;
 });
 
 canvas.addEventListener('touchstart', e => {
@@ -1257,9 +1157,18 @@ canvas.addEventListener('touchstart', e => {
     }
 });
 
-window.addEventListener('mouseup', () => {
-    pointers[0].down = false;
-});
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const touches = e.targetTouches;
+    for (let i = 0; i < touches.length; i++) {
+        let pointer = pointers[i];
+        pointer.moved = pointer.down;
+        pointer.dx = (touches[i].pageX - pointer.x) * 8.0;
+        pointer.dy = (touches[i].pageY - pointer.y) * 8.0;
+        pointer.x = touches[i].pageX;
+        pointer.y = touches[i].pageY;
+    }
+}, false);
 
 window.addEventListener('touchend', e => {
     const touches = e.changedTouches;
@@ -1328,3 +1237,72 @@ function getTextureScale (texture, width, height) {
         y: height / texture.height
     };
 }
+
+function randomRangeInt(min, max) {
+	return Math.floor(Math.random() * (max - min)) + min;
+}
+
+function randomFromArray(array) {
+	return array[Math.floor(Math.random() * array.length)];
+}
+
+function clampInt (int, min, max) {
+	return Math.min(Math.max(int, min), max);
+}
+
+function initTWEEN() {
+	let pointer = new pointerPrototype();
+	pointer.id = 'tweenedPointer';
+	
+	pointers.push(pointer);
+	tweenToRandom(pointer);
+}
+
+function tweenToRandom(pointer) {
+	let destination = {x: null, y: null};
+	const interpolate = Math.random() > 0.5;
+	const speed = randomRangeInt(500, 3000);
+	const randomEasing = randomFromArray(easingFunctions);
+	const randomInterpolation = randomFromArray(interpolationFunctions);
+	const randomDelay = randomRangeInt(0, 500);
+
+	if (interpolate) {
+		const iterations = randomRangeInt(1, 5);
+		destination.x = [];
+		destination.y = [];
+		for (let i = 0; i < iterations; i++) {
+			let rX = clampInt(pointer.x + randomRangeInt(-200, 200), 0, canvas.width);
+			let rY = clampInt(pointer.y + randomRangeInt(-200, 200), 0, canvas.height);
+			destination.x.push(rX);
+			destination.y.push(rY);
+		}
+	} else {
+		destination.x = randomRangeInt(0, canvas.width);
+		destination.y = randomRangeInt(0, canvas.height);
+	}
+	
+	let object = {x: pointer.x, y: pointer.y};
+	new TWEEN.Tween(object)
+		.to(destination, speed)
+		.easing(randomEasing)
+		.interpolation(randomInterpolation)
+		.onStart(() => {
+			pointer.color = generateColor();
+			pointer.down = true;
+		})
+		.onUpdate((object) => {
+			pointer.moved = pointer.down;
+			pointer.dx = (object.x - pointer.x) * 5.0;
+			pointer.dy = (object.y - pointer.y) * 5.0;
+			pointer.x = object.x;
+			pointer.y = object.y;
+		})
+		.onComplete(() => {
+			pointer.down = false;
+			tweenToRandom(pointer);
+		})
+		.delay(randomDelay)
+		.start();
+}
+
+initTWEEN();
