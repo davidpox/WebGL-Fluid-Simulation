@@ -1250,6 +1250,10 @@ function clampInt (int, min, max) {
 	return Math.min(Math.max(int, min), max);
 }
 
+function randomSign() {
+	return Math.random() > 0.5 ? 1 : -1;
+}
+
 function initTWEEN() {
 	let pointer = new pointerPrototype();
 	pointer.id = 'tweenedPointer';
@@ -1271,8 +1275,8 @@ function tweenToRandom(pointer) {
 		destination.x = [];
 		destination.y = [];
 		for (let i = 0; i < iterations; i++) {
-			let rX = clampInt(pointer.x + randomRangeInt(-200, 200), 0, canvas.width);
-			let rY = clampInt(pointer.y + randomRangeInt(-200, 200), 0, canvas.height);
+			let rX = clampInt(pointer.x + (randomRangeInt(100, 500) * randomSign()), 0, canvas.width);
+			let rY = clampInt(pointer.y + (randomRangeInt(-100, 500) * randomSign()), 0, canvas.height);
 			destination.x.push(rX);
 			destination.y.push(rY);
 		}
