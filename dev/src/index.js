@@ -1139,7 +1139,7 @@ canvas.addEventListener('mousedown', () => {
 });
 
 window.addEventListener('mouseup', () => {
-    pointers[0].down = false;
+    //pointers[0].down = false;
 });
 
 canvas.addEventListener('touchstart', e => {
@@ -1276,7 +1276,7 @@ function tweenToRandom(pointer) {
 		destination.y = [];
 		for (let i = 0; i < iterations; i++) {
 			let rX = clampInt(pointer.x + (randomRangeInt(100, 500) * randomSign()), 0, canvas.width);
-			let rY = clampInt(pointer.y + (randomRangeInt(-100, 500) * randomSign()), 0, canvas.height);
+			let rY = clampInt(pointer.y + (randomRangeInt(100, 500) * randomSign()), 0, canvas.height);
 			destination.x.push(rX);
 			destination.y.push(rY);
 		}
@@ -1310,3 +1310,10 @@ function tweenToRandom(pointer) {
 }
 
 initTWEEN();
+
+pointers[0].down = true;
+pointers[0].color = generateColor();
+
+setInterval(() => {
+	pointers[0].color = generateColor();
+}, 5000);
